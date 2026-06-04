@@ -14,6 +14,7 @@ import {
   BarChart2,
   Sparkles,
   ScrollText,
+  Zap,
 } from 'lucide-react'
 
 export default function AppShell() {
@@ -28,6 +29,7 @@ export default function AppShell() {
   const adminLinks = [
     { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/admin/assignments', label: 'Assignments', icon: ClipboardList },
+    { to: '/admin/matching', label: 'Matching Engine', icon: Zap },
     { to: '/admin/instructors', label: 'Instructors', icon: Users },
     { to: '/admin/sections', label: 'Sections', icon: CalendarDays },
     { to: '/admin/courses', label: 'Courses', icon: BookOpen },

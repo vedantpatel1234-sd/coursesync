@@ -21,6 +21,7 @@ import AdminImport from './pages/admin/Import'
 import AdminAnalytics from './pages/admin/Analytics'
 import AdminAIAssistant from './pages/admin/AIAssistant'
 import AdminAuditLog from './pages/admin/AuditLog'
+import AdminMatchingEngine from './pages/admin/MatchingEngine'
 
 export default function App() {
   const fetchProfile = useAuthStore(s => s.fetchProfile)
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
             <Route path="/admin/ai" element={<AdminAIAssistant />} />
             <Route path="/admin/audit" element={<AdminAuditLog />} />
+            <Route path="/admin/matching" element={<AdminMatchingEngine />} />
           </Route>
         </Route>
 
