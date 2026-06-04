@@ -1,3 +1,13 @@
+# CourseSync
+
+🔗 **Live Demo:** [coursesync-gamma.vercel.app](https://coursesync-gamma.vercel.app)
+
+**Demo credentials:**
+- Admin: `admin@demo.ca` / `Demo@1234`
+- Instructor: `instructor@demo.ca` / `Demo@1234`
+
+
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
