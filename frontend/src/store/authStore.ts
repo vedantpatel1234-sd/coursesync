@@ -27,12 +27,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signIn: async (email: string, password: string) => {
-    // Clear any existing session first
-    await supabase.auth.signOut()
-    
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw new Error(error.message)
-    
     if (data.user) {
       const { data: profile } = await supabase
         .from('profiles')
@@ -44,10 +40,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signOut: async () => {
-    // Clear all storage before signing out
-    localStorage.clear()
-    sessionStorage.clear()
-    await supabase.auth.signOut({ scope: 'local' })
+    await supabase.auth.signOut()
     set({ user: null, loading: false })
   },
 }))
