@@ -19,18 +19,6 @@ interface Instructor {
   instructor_profiles: { max_hours_per_term: number }[] | null
 }
 
-interface Qualification {
-  instructor_id: string
-  course_id: string
-  verified: boolean
-}
-
-interface Preference {
-  instructor_id: string
-  section_id: string
-  rank: number
-}
-
 interface Suggestion {
   section_id: string
   instructor_id: string
@@ -73,19 +61,16 @@ export default function AdminMatchingEngine() {
   const [unresolvedSections, setUnresolvedSections] = useState<string[]>([])
   const [accepted, setAccepted] = useState<Set<string>>(new Set())
   const [publishing, setPublishing] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => { fetchData() }, [])
 
   async function fetchData() {
-    setLoading(true)
     const [draftsRes, termsRes] = await Promise.all([
       supabase.from('drafts').select('id, name, status, terms(name)').eq('status', 'sandbox').order('created_at', { ascending: false }),
       supabase.from('terms').select('id, name').order('name'),
     ])
     if (draftsRes.data) setDrafts(draftsRes.data as any)
     if (termsRes.data) setTerms(termsRes.data as Term[])
-    setLoading(false)
   }
 
   async function runMatching() {
@@ -101,7 +86,6 @@ export default function AdminMatchingEngine() {
     setAccepted(new Set())
 
     try {
-      // Fetch all required data
       const [sectionsRes, instructorsRes, qualsRes, prefsRes, assignmentsRes] = await Promise.all([
         supabase.from('sections').select('id, section_number, hours_required, status, course_id, courses(code, name)').eq('term_id', selectedTerm),
         supabase.from('profiles').select('id, full_name, instructor_profiles(max_hours_per_term)').eq('role', 'instructor'),
@@ -116,35 +100,27 @@ export default function AdminMatchingEngine() {
       const preferences = (prefsRes.data ?? []) as any[]
       const existingAssignments = (assignmentsRes.data ?? []) as any[]
 
-      // Build workload map
       const hoursMap: Record<string, number> = {}
       existingAssignments.forEach((a: any) => {
         hoursMap[a.instructor_id] = (hoursMap[a.instructor_id] ?? 0) + a.hours_assigned
       })
 
-      const workloads = instructors.map(i => ({
-        instructor_id: i.id,
-        full_name: i.full_name,
-        max_hours_per_term: i.instructor_profiles?.[0]?.max_hours_per_term ?? 40,
-        hours_assigned: hoursMap[i.id] ?? 0,
-        hours_remaining: (i.instructor_profiles?.[0]?.max_hours_per_term ?? 40) - (hoursMap[i.id] ?? 0),
-      }))
-
-      // Run weighted scoring algorithm
       const weights = { preference_rank: 0.5, qualification: 0.3, workload_balance: 0.2 }
+
       const qualMap = new Map<string, Set<string>>()
-      qualifications.forEach(q => {
+      qualifications.forEach((q: any) => {
         if (!qualMap.has(q.instructor_id)) qualMap.set(q.instructor_id, new Set())
         qualMap.get(q.instructor_id)!.add(q.course_id)
       })
 
       const prefMap = new Map<string, number>()
-      preferences.forEach(p => prefMap.set(`${p.instructor_id}:${p.section_id}`, p.rank))
+      preferences.forEach((p: any) => prefMap.set(`${p.instructor_id}:${p.section_id}`, p.rank))
 
       const runningHours = new Map<string, number>()
-      workloads.forEach(w => runningHours.set(w.instructor_id, w.hours_assigned))
+      instructors.forEach((i: any) => runningHours.set(i.id, hoursMap[i.id] ?? 0))
+
       const maxHoursMap = new Map<string, number>()
-      workloads.forEach(w => maxHoursMap.set(w.instructor_id, w.max_hours_per_term))
+      instructors.forEach((i: any) => maxHoursMap.set(i.id, i.instructor_profiles?.[0]?.max_hours_per_term ?? 40))
 
       const newSuggestions: Suggestion[] = []
       const newConflicts: ConflictLog[] = []
@@ -205,12 +181,12 @@ export default function AdminMatchingEngine() {
         }
 
         if (bestInstructor) {
-          const instructorObj = instructors.find(i => i.id === bestInstructor)
+          const instructorObj = instructors.find((i: any) => i.id === bestInstructor)
           newSuggestions.push({
             section_id: section.id,
             instructor_id: bestInstructor,
             score: Math.round(bestScore * 100) / 100,
-            reasons: bestReasons,
+            reasons: [...bestReasons],
             section,
             instructor: instructorObj,
           })
@@ -220,17 +196,16 @@ export default function AdminMatchingEngine() {
           newConflicts.push({
             section_id: section.id,
             reason: `No qualified instructor with sufficient hours found for ${section.courses?.code}-${section.section_number}`,
-            conflict_type: 'not_qualified',
+            conflict_type: 'unresolved',
             section,
           })
         }
       }
 
       setSuggestions(newSuggestions)
-      setConflicts(newConflicts.filter(c => newUnresolved.includes(c.section_id) || !newSuggestions.find(s => s.section_id === c.section_id)))
+      setConflicts(newConflicts.filter(c => newUnresolved.includes(c.section_id)))
       setUnresolvedSections(newUnresolved)
 
-      // Mark draft as AI generated
       await supabase.from('drafts').update({ is_ai_generated: true }).eq('id', selectedDraft)
 
       toast.success(`Matching complete — ${newSuggestions.length} suggestions, ${newUnresolved.length} unresolved`)
@@ -267,7 +242,6 @@ export default function AdminMatchingEngine() {
       for (const suggestion of toPublish) {
         const section = suggestion.section
         if (!section) continue
-
         await supabase.from('assignments').insert({
           instructor_id: suggestion.instructor_id,
           section_id: suggestion.section_id,
@@ -278,7 +252,6 @@ export default function AdminMatchingEngine() {
         })
       }
 
-      // Publish the draft
       await supabase.from('drafts').update({
         status: 'published',
         published_at: new Date().toISOString(),
@@ -321,13 +294,11 @@ export default function AdminMatchingEngine() {
         .cs-btn-green:hover:not(:disabled) { background: #0F6E56; }
       `}</style>
 
-      {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: 500, color: '#1A1A2E', margin: '0 0 4px' }}>Matching Engine</h1>
         <p style={{ fontSize: '14px', color: '#6B6B80', margin: 0 }}>Run the weighted scoring algorithm to generate assignment suggestions</p>
       </div>
 
-      {/* Config panel */}
       <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.07)', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
         <div style={{ fontSize: '14px', fontWeight: 500, color: '#1A1A2E', marginBottom: '16px' }}>Configure matching run</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
@@ -350,7 +321,6 @@ export default function AdminMatchingEngine() {
           </button>
         </div>
 
-        {/* Weights info */}
         <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
           {[
             { label: 'Preference rank', weight: '50%', color: '#534AB7' },
@@ -365,10 +335,8 @@ export default function AdminMatchingEngine() {
         </div>
       </div>
 
-      {/* Results */}
       {suggestions.length > 0 && (
         <>
-          {/* Summary */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
             {[
               { label: 'Suggestions', value: suggestions.length, color: '#0F6E56' },
@@ -382,7 +350,6 @@ export default function AdminMatchingEngine() {
             ))}
           </div>
 
-          {/* Action buttons */}
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
             <button className="cs-btn" onClick={acceptAll}>Accept all</button>
             <button className="cs-btn cs-btn-green" onClick={publishAccepted} disabled={publishing || accepted.size === 0}>
@@ -390,7 +357,6 @@ export default function AdminMatchingEngine() {
             </button>
           </div>
 
-          {/* Suggestions table */}
           <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.07)', borderRadius: '12px', overflow: 'hidden', marginBottom: '16px' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', fontSize: '14px', fontWeight: 500, color: '#1A1A2E' }}>
               Suggested assignments
@@ -448,7 +414,6 @@ export default function AdminMatchingEngine() {
             </table>
           </div>
 
-          {/* Conflicts */}
           {conflicts.length > 0 && (
             <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.07)', borderRadius: '12px', overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(0,0,0,0.07)', fontSize: '14px', fontWeight: 500, color: '#1A1A2E' }}>
@@ -472,7 +437,6 @@ export default function AdminMatchingEngine() {
         </>
       )}
 
-      {/* Empty state */}
       {suggestions.length === 0 && !running && (
         <div style={{ textAlign: 'center', padding: '64px', color: '#6B6B80', background: '#fff', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.07)' }}>
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚡</div>
